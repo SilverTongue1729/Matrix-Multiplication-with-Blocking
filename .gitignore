@@ -4,6 +4,6 @@ naive
 test/generate
 test/compare
 temp
-test/input/*
-test/output_main/*
-test/output_naive/*
+# test/input/*
+# test/output_main/*
+# test/output_naive/*
