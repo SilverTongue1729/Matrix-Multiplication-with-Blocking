@@ -2,53 +2,55 @@ CXX := g++
 CXXFLAGS := -std=c++20 -O2 -DLOCAL -fconcepts 
 
 TESTS := $(wildcard test/input/*.in)
-OUTPUTS := $(patsubst test/input/%.in,test/output/%.out,$(TESTS))
+OUTPUT_MAIN := $(patsubst test/input/%.in,test/output_main/%.out,$(TESTS))
+OUTPUT_NAIVE := $(patsubst test/input/%.in,test/output_naive/%.out,$(TESTS))
 
-all: $(OUTPUTS)
+all: src/main src/naive
 
-test: all
-    @for i in $(TESTS); do \
-        echo "Running $$i..."; \
-        ./src/main < $$i | diff -u $(patsubst test/input/%.in,test/output/%.out,$$i) -; \
-    done
+src/main: src/main.cpp
+	$(CXX) $(CXXFLAGS) -o $@ $<
 
-test_naive:
-    @for i in $(TESTS); do \
-        echo "Running $$i..."; \
-        ./src/naive < $$i | diff -u $(patsubst test/input/%.in,test/output/%.out,$$i) -; \
-    done
+src/naive: src/naive.cpp
+	$(CXX) $(CXXFLAGS) -o $@ $<
+		
+test/generate: test/generate.cpp
+	$(CXX) $(CXXFLAGS) -o $@ $<
 
-test_%:
-    @for i in $(filter %,$(subst _, ,$@)); do \
-        echo "Running test $$i..."; \
-        ./src/main < test/input/test$$i.in | diff -u test/output/test$$i.out -; \
-    done
+test: all $(patsubst test/input/%.in,test_%,$(TESTS))
 
-test_naive_%:
-    @for i in $(filter %,$(subst _, ,$@)); do \
-        echo "Running test $$i..."; \
-        ./src/naive < test/input/test$$i.in | diff -u test/output/test$$i.out -; \
-    done
+test_%: all
+	@echo "Running test $*..."
+	@./src/main < test/input/test$*.in > output_main/test$*.out
+	@./src/naive < test/input/test$*.in > output_naive/test$*.out
+	@if diff -q output_main/test$*.out output_naive/test$*.out >/dev/null; \
+	then \
+	  echo "Test $* PASSED"; \
+	else \
+	  echo "Test $* FAILED"; \
+	fi
 
 clean:
-    rm -f src/main src/naive $(OUTPUTS)
+	rm -f src/main src/naive test/generate output_main/* output_naive/* 
 
 test/input/test%.in:
-    ./test/generate > $@
+	./test/generate > $@
 
-test/output/test%.out: test/input/test%.in
-    ./src/main < $< > $@
+gen: test/generate
+	@for i in $(shell seq 1 $(filter-out $@,$(MAKECMDGOALS))); do \
+		make gen_one $$i; \
+	done
 
-test/compare: test/output/test%.out
-    @./test/compare $< test/output/test%.out
 
-.PHONY: all test test_naive test_% test_naive_% clean test/compare
+.PHONY: all test test_% clean gen_one gen check
 
-gen_tests:
-    @for i in $(shell seq 1 $(filter-out $@,$(MAKECMDGOALS))); do \
-        ./test/generate > test/input/test$$i.in; \
-        echo "Generating test input file test$$i.in..."; \
-    done
+check:
+	@echo "Checking for differences..."
+	@if diff -q output_main output_naive >/dev/null; \
+	then \
+	  echo "All tests PASSED"; \
+	else \
+	  echo "Some tests FAILED"; \
+	fi
 
-%:
-	@:
+gen_one:
+	./test/generate > test/input/test$(filter-out $@,$(MAKECMDGOALS)).in
